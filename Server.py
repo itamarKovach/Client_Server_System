@@ -154,12 +154,8 @@ try:
     s1.listen('127.0.0.1', 8080)
     s1.accept()
 
-    # Example of reusing the socket for multiple file transfers
     s1.receive_file('received_file.txt')
     s1.send_file('received_file.txt')
-
-    # s1.receive_file('received_file_2.txt')
-    # s1.send_file('received_file_2.txt')
 
     s1.close_connection()
     s1.stop_server()
