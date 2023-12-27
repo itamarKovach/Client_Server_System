@@ -207,9 +207,9 @@ try:
     # Connect to the server
     client.connect_to_server('127.0.0.1', 8080)
     
-    # Send and receive files (use default file name or provide a custom name)
+    # Send and receive files
     client.send_file("Upload.txt")
     client.receive_file("Download.txt")
 finally:
-    # Close the connection (even if an exception occurs)
+    # Close the connection
     client.close_connection()
