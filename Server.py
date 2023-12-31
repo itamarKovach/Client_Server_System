@@ -1,3 +1,4 @@
+from asyncio.windows_events import NULL
 import socket
 import logging
 
@@ -23,7 +24,7 @@ class Server:
 
     SERVER_FILES_PATH = 'C:\\Programming\\Server_Files'
 
-    def __init__(self):
+    def __init__(self, server_host, server_port):
         """
         Initialize the Server instance.
 
@@ -33,10 +34,31 @@ class Server:
             address (tuple): The address of the connected client.
             logger (logging.Logger): The logger for recording server events.
         """
-        self.server_socket = None
-        self.client_socket = None
-        self.address = None
+        
         self.logger = self.setup_logger()
+        
+        try:
+            # Create a socket object
+            self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            
+            # Bind the socket to the host and port
+            bind = server_host, server_port
+            self.server_socket.bind(bind)
+            
+            # Listen for incoming connections
+            self.server_socket.listen()
+        except Exception as e:
+            self.logger.error(f"Error during socket setup: {e}")
+            print(f"Error during socket setup: {e}")
+            raise
+        
+        try:
+            # Accept a connection from the client
+            self.client_socket, self.client_address = self.server_socket.accept()
+        except Exception as e:
+            self.logger.error(f"Error accepting connection: {e}")
+            print(f"Error accepting connection: {e}")
+            raise
 
     def setup_logger(self):
         """
@@ -54,35 +76,21 @@ class Server:
         logger.addHandler(file_handler)
 
         return logger
-
-    def listen(self, server_address, port):
-        """
-        Start listening for incoming connections on the specified address and port.
-
-        Parameters:
-            server_address (str): The IP address or hostname of the server.
-            port (int): The port number on which the server is listening for connections.
-        """
-        try:
-            self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            bind = server_address, port
-            self.server_socket.bind(bind)
-            self.server_socket.listen()
-        except Exception as e:
-            self.logger.error(f"Error during socket setup: {e}")
-            print(f"Error during socket setup: {e}")
-            raise
-
-    def accept(self):
-        """
-        Accept a connection from a client.
-        """
-        try:
-            self.client_socket, self.address = self.server_socket.accept()
-        except Exception as e:
-            self.logger.error(f"Error accepting connection: {e}")
-            print(f"Error accepting connection: {e}")
-            raise
+    
+    def action(self):
+        self.command = "null"
+        action = self.client_socket.recv(1024).decode()
+        
+        if action == "upload":
+            file_name = self.client_socket.recv(1024).decode()
+            self.receive_file(file_name)
+            
+        elif action == "download":
+            file_name = self.client_socket.recv(1024).decode()
+            
+            self.send_file(file_name)
+        else:
+            self.command = "break"
 
     def receive_file(self, file_name):
         """
@@ -93,14 +101,17 @@ class Server:
         """
         try:
             with open(f'{self.SERVER_FILES_PATH}\\{file_name}', "wb") as file:
-                print(f"Receiving file: {file_name}")
                 data = self.client_socket.recv(1024)
-                # while True:
+                # while data:
                 #     data = self.client_socket.recv(1024)
                 #     if not data:
                 #         break
                 file.write(data)
-                print(f"File '{file_name}' received successfully.")
+                
+                # console
+                print(f"\n    File '{file_name}' received successfully to server.")
+                
+                # server logger file
                 self.logger.info(f"File '{file_name}' received successfully.")
         except Exception as e:
             self.logger.error(f"Error during file reception: {e}")
@@ -119,8 +130,11 @@ class Server:
                 data = file.read()
                 self.client_socket.sendall(data)
                 
+                # console
+                print(f"\n    File '{file_name}' sent successfully from server.")
+                
+                # server logger file
                 self.logger.info(f"File '{file_name}' sent successfully.")
-                print(f"File '{file_name}' sent successfully.")
         except Exception as e:
             self.logger.error(f"Error during file transmission: {e}")
             print(f"Error during file transmission: {e}")
@@ -131,10 +145,19 @@ class Server:
         Close the connection with the client.
         """
         try:
-            self.client_socket.close()
+            if self.server_socket is not None:
+                # Listen for incoming connections
+                self.server_socket.listen()
+            
+                # Accept a connection from the client
+                self.client_socket, self.client_address = self.server_socket.accept()
+                while True:
+                    s.action()
+                    if s.command == "break":
+                        break
         except Exception as e:
+            print(f"Error closing server connection: {e}")
             self.logger.error(f"Error closing connection: {e}")
-            print(f"Error closing connection: {e}")
             raise
 
     def stop_server(self):
@@ -142,23 +165,25 @@ class Server:
         Close the server socket.
         """
         try:
-            self.server_socket.close()
+            self.server_socket = None
+            print("Server closed.")
         except Exception as e:
-            self.logger.error(f"Error closing server socket: {e}")
             print(f"Error closing server socket: {e}")
+            self.logger.error(f"Error closing server socket: {e}")
             raise
 
-# Example usage:
-try:
-    s1 = Server()
-    s1.listen('127.0.0.1', 8080)
-    s1.accept()
+if __name__ == "__main__":
+    # Example usage:
+    try:
+        s = Server('127.0.0.1', 1234)
+    
+        while True:
+            s.action()
+            if s.command == "break":
+                s.close_connection()
+                break
+        s.stop_server()
+              
 
-    s1.receive_file('received_file.txt')
-    s1.send_file('received_file.txt')
-
-    s1.close_connection()
-    s1.stop_server()
-
-except Exception as e:
-    print(f"An unexpected error occurred: {e}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")

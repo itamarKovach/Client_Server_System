@@ -23,7 +23,8 @@ class Client:
 
     
     BUFFER_SIZE = 1024  # Constant for the buffer size
-    CLIENT_FILES_PATH = 'C:\\Programming\\Client_Files'
+    CLIENT_FILES_PATH = 'C:\\Programming\\Client_Files' # change it to the place you want to save the files
+    counter = 1
     
     def __init__(self):
         
@@ -90,7 +91,7 @@ class Client:
             
             # Connection successful
             self.logger.info("Connected to the server.")
-            print("Connected to the server.")
+            print("\nConnected to the server.")
         except ConnectionRefusedError:
             # Handle connection refusal (server not running)
             self.logger.error("Connection refused. Ensure the server is running.")
@@ -100,6 +101,28 @@ class Client:
             self.logger.error(f"An error occurred while connecting to the server: {e}")
             print(f"An error occurred while connecting to the server: {e}")
             
+    def action(self):
+        self.command = "null"
+        action = input("\nenter your action (upload/download): ")
+        self.client_socket.send(action.encode())
+        
+        if action == "upload":
+            
+            self.file_name = input("\n  enter the file name you want to upload (example.txt): ")
+            file_name = self.file_name
+            self.client_socket.send(file_name.encode())
+
+            self.send_file(file_name)
+        elif action == "download":
+            
+            file_to_recive = input("\n  enter the file name you want to download (example.txt): ")
+            file_name = input("\n  enter a file name to save the data (example.txt): ")
+            
+            self.client_socket.send(file_to_recive.encode())
+            
+            self.receive_file(file_name)
+        else:
+            self.command = "break"
 
     def send_file(self, file_name):
         
@@ -120,14 +143,14 @@ class Client:
             with open(f'{self.CLIENT_FILES_PATH}\\{file_name}', 'rb') as file:
                 # Read the entire file content into a byte string
                 data = file.read()
+                # Send the file data to the server
+                self.client_socket.sendall(data)
                 
-                # Send the action and the file data to the server
-                self.client_socket.sendall("upload")
-                self.client_socket.sendall("Upload.txt", data)
+                # console
+                print(f"\n    File '{file_name}' sent successfully from client.")
                 
-                # File successfully sent
+                # client logger file
                 self.logger.info(f"File '{file_name}' sent successfully.")
-                print(f"File '{file_name}' sent successfully.")
         except FileNotFoundError:
             # Handle file not found error
             self.logger.error(f"Error: File '{file_name}' not found.")
@@ -151,33 +174,26 @@ class Client:
                 * Receives data from the server in chunks and writes them to the file.
         """
 
-        try:
-
-            # Send the action and file data to the server
-            self.client_socket.sendall("Download.txt")           
+        try:      
 
             # Open a new file in binary write mode
             with open(f'{self.CLIENT_FILES_PATH}\\{file_name}', "wb") as file:
-                while True:
-                    # Receive data from the server in BUFFER_SIZE-byte chunks
-                    data = self.client_socket.recv(self.BUFFER_SIZE)
+                # Receive data from the server in BUFFER_SIZE-byte chunk
+                data = self.client_socket.recv(self.BUFFER_SIZE)
                     
-                    # Break the loop if no more data is received
-                    if not data:
-                        break
-                    
-                    # Write each chunk to the file
-                    file.write(data)
+                # Write chunk to the file
+                file.write(data)
             
-            # File received successfully
+            # console
+            print(f"\n    File '{file_name}' received successfully to Client.")
+            
+            # client logger file
             self.logger.info(f"File '{file_name}' received successfully.")
-            print(f"File '{file_name}' received successfully.")
         except Exception as e:
             # Handle file receiving errors
             self.logger.error(f"An error occurred during file receiving: {e}")
             print(f"An error occurred during file receiving: {e}")
-                
-                
+
     def close_connection(self):
         
         '''
@@ -194,22 +210,35 @@ class Client:
             if self.client_socket:
                 self.client_socket.close()
             
+            Client.counter += 1
+            
+            if  Client.counter < 3:     # for learning purpose the server cant take more than 3 clients
+                # Connect to the server
+                client.connect_to_server('127.0.0.1', 1234)
+    
+                while True:
+                    # Send and receive files
+                    client.action()
+                    if client.command == "break":
+                        client.close_connection()
+                        break
+            self.client_socket.close()
             # Connection closed successfully
             self.logger.info("Connection closed.")
-            print("Connection closed.")
         except OSError as e:
             self.logger.error(f"An error occurred while closing the connection: {e}")
-            print(f"An error occurred while closing the connection: {e}")
-         
-# Example usage:
-client = Client()
-try:
+            print(f"An error occurred while closing the client connection: {e}")
+
+if __name__ == "__main__":        
+    # Example usage:
+    client = Client()
     # Connect to the server
-    client.connect_to_server('127.0.0.1', 8080)
+    client.connect_to_server('127.0.0.1', 1234)
     
-    # Send and receive files
-    client.send_file("Upload.txt")
-    client.receive_file("Download.txt")
-finally:
-    # Close the connection
-    client.close_connection()
+    while True:
+        # Send and receive files
+        client.action()
+        if client.command == "break":
+            client.close_connection()
+            print("client connection closed.")
+            break
